@@ -6,7 +6,7 @@ import json
 
 class Parameters(object):
     """ Parameters class to store the parameters of a tool """
-    def __init__(self, parameters: list) -> None:
+    def __init__(self, parameters: list[arcpy.Parameter]) -> None:
         self._parameters = parameters
         for parameter in parameters:
             self.__dict__[parameter.name] = parameter
@@ -19,7 +19,9 @@ class Parameters(object):
     
     def __getitem__(self, key):
         return self.__dict__[key]
-    
+
+
+
 def sanitize_filename(filename: str) -> str:
     """ Sanitize a filename """
     return "".join([char for char in filename if char.isalnum() or char in [" ", "_", "-"]])

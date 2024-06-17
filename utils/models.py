@@ -2,7 +2,7 @@ import arcpy
 import os
 from typing import Any, Generator
 
-from archelp import message
+from utils.archelp import message
 
 ALL_FIELDS = object()
 
@@ -298,8 +298,84 @@ class FeatureClass(Table):
       
 class ShapeFile(FeatureClass):
     """ Wraper for basic Shapefile operations"""
-
+    
 class Dataset(DescribeModel):
     """ Wrapper for basic Dataset operations """
 class GeoDatabase(DescribeModel):
     """ Wrapper for basic GeoDatabase operations """
+    
+class Schema:
+    """ Wrapper for simple Schema operations with GeoDatabases"""
+
+    def __init__(self, gdb: os.PathLike):
+        self.gdb = gdb
+        if not arcpy.Exists(self.gdb):
+            raise FileNotFoundError(f"{self.gdb} does not exist")
+        self.describe = arcpy.Describe(gdb)
+        self.name = self.describe.name
+        self.path = self.describe.catalogPath
+        self.datasets: dict[str: Any] = \
+            {
+                ds.name: ds 
+                for ds in self.describe.children 
+                if ds.dataType == "FeatureDataset"
+            }
+        self.tables: dict[str: list[str]] = \
+            {
+                table.name: table.fields 
+                for table in self.describe.children 
+                if table.dataType == "Table"
+            }
+        self.featureclasses: dict[str: list[str]] = \
+            {
+                fc.name: fc.fields 
+                for fc in self.describe.children
+                if fc.dataType == "FeatureClass"
+            }
+        for dataset in self.datasets.values():
+            self.tables.update(
+                {
+                    f'{dataset.name}->{table.name}': table.fields 
+                    for table in dataset.children 
+                    if table.dataType == "Table"
+                }
+            )
+            self.featureclasses.update(
+                {
+                    f'{dataset.name}->{fc.name}': fc.fields 
+                    for fc in dataset.children 
+                    if fc.dataType == "FeatureClass"
+                }
+            )
+        self.domain_names: list[str] = self.describe.domains
+        self._comparator_set = set(self.featureclasses.keys()).union(set(self.tables.keys()))
+        return
+    
+    def __repr__(self):
+        return f"<Schema: {self.name} @ {hex(id(self))}>"
+    
+    def __str__(self):
+        return f"Schema: {self.name}\nDatasets: {list(self.datasets.keys())}\nTables: {list(self.tables.keys())}\nFeatureClasses: {list(self.featureclasses.keys())}\nDomains: {self.domain_names}"
+    
+    def __eq__(self, other: object) -> bool:
+        if isinstance(other, Schema):
+            return self._comparator_set - other._comparator_set == set() and other._comparator_set - self._comparator_set == set()
+        raise ValueError(f"Cannot compare Schema to {type(other)}")
+    
+    def __and__(self, other: object) -> set[str]:
+        """ Overload the & operator to return the intersection of two Schemas Table anf FC names"""
+        if isinstance(other, Schema):
+            return self._comparator_set & other._comparator_set
+        raise ValueError(f"Cannot compare Schema to {type(other)}")
+    
+    def __or__(self, other: object) -> set[str]:
+        """ Overload the | operator to return the union of two Schemas Table and FC names"""
+        if isinstance(other, Schema):
+            return self._comparator_set | other._comparator_set
+        raise ValueError(f"Cannot compare Schema to {type(other)}")
+    
+    def __sub__(self, other: object) -> set[str]:
+        """ Overload the - operator to return the difference of two Schemas Table and FC names"""
+        if isinstance(other, Schema):
+            return self._comparator_set - other._comparator_set
+        raise ValueError(f"Cannot compare Schema to {type(other)}")
