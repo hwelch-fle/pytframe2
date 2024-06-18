@@ -15,7 +15,7 @@ class VersionControl(Tool):
             capture_output=True,
             text=True,
             shell=True,
-        ).stdout.strip().replace('*',' ').split("\n  ")
+        ).stdout.strip().replace('*','').strip().split("\n  ")
     ACTIVE_BRANCH = \
         subprocess.run(
             ["git", "branch", "--show-current"], 
