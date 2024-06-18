@@ -2,6 +2,10 @@ import arcpy
 import os
 from typing import Any, Generator
 
+from time import time
+
+from typing import overload
+
 from utils.archelp import message
 
 ALL_FIELDS = object()
@@ -21,7 +25,6 @@ class DescribeModel:
         self.catalogpath: os.PathLike = desc.catalogPath
         self.extension: str = desc.extension
         self.type: str = desc.dataType
-        self.data = None
         return
     
     def update(self):
@@ -50,7 +53,7 @@ class DescribeModel:
 
 class Table(DescribeModel):
     """ Wrapper for basic Table operations """
-    def __init__(self, tablepath: os.PathLike):
+    def __init__(self, tablepath: os.PathLike, cached: bool = True):
         super().__init__(tablepath)
         
         self._query: str = None
@@ -61,6 +64,7 @@ class Table(DescribeModel):
             self.fieldnames[shape_idx] = "SHAPE@"   # Default to include full shape
         self.indexes: list[arcpy.Index] = self.describe.indexes
         self.OIDField: str = self.describe.OIDFieldName
+        self.OIDs = [row[0] for row in arcpy.da.SearchCursor(self.featurepath, [self.OIDField])]
         self.cursor_tokens: list[str] = \
             [
                 "CREATED@",
@@ -71,7 +75,8 @@ class Table(DescribeModel):
                 "OID@",
                 "SUBTYPE@",
             ]
-        self.record_count: int = len(self)
+        self.cache: Cache[str, dict] | None = Cache(self) if cached else None
+        self.record_count: int = len(self.cache) if self.cache else self.describe.rowCount
         self._total_count: int = self.record_count
         return
     
@@ -107,7 +112,7 @@ class Table(DescribeModel):
     def query(self):
         """ Delete the query string """
         self._query = None
-        self.data = None
+        self.cache.invalidate()
         self.record_count = self._total_count
         return
     
@@ -122,20 +127,33 @@ class Table(DescribeModel):
         if not self._validate_fields(fields):
             raise ValueError(f"Fields must be in {self.fieldnames + self.cursor_tokens}")
         
-        query = self._query
-        if 'where_clause' in kwargs:
-            query = kwargs['where_clause']
-            del kwargs['where_clause']
+        if hasattr(self, "cache") and self.cache and self.cache.valid:
+            for _, v in self.cache.items():
+                yield v if as_dict else list(v.values())
         
-        with arcpy.da.SearchCursor(self.featurepath, fields, where_clause=query, **kwargs) as cursor:
+        with arcpy.da.SearchCursor(self.featurepath, fields, where_clause=self.query, **kwargs) as cursor:
             for row in cursor:
                 if as_dict:
                     yield dict(zip(fields, row))
                 else:
                     if len(fields) == 1: yield row[0]
                     else: yield row
+    
+    def _update_rows_cache(self, key: str, values: dict[str, dict[str, Any]], **kwargs) -> int:
+        """ Internal Method for updating rows in cache """
+        if not values:
+            raise ValueError("Values must be provided")
+        if not self._validate_fields(list(values.keys()) + [key]):
+            raise ValueError(f"Fields must be in {self.fieldnames + self.cursor_tokens}")
+        update_count = 0
+        for k, v in values.items():
+            idx = self._get_index(k)
+            self.cache[idx].update(v)
+            self.cache.edits['updates'].append(self.cache[idx])
+            update_count += 1
+        return update_count
                     
-    def update_rows(self, key: str, values: dict[Any, dict[str, Any]], **kwargs) -> int:
+    def update_rows(self, key: str, values: dict[str, dict[str, Any]], **kwargs) -> int:
         """ Update rows in table
         key: field to use as key for update (must be in fields)
         values: dict of key value pairs to update [fieldname/token: value]
@@ -144,26 +162,47 @@ class Table(DescribeModel):
         """
         if not values:
             raise ValueError("Values must be provided")
-        fields = list(list(values.values())[0].keys())
-        if not self._validate_fields(fields):
+        fields = list(next(iter(values.values())).keys()) # Get fields from first value
+        if not self._validate_fields(fields + [key]):
             raise ValueError(f"Fields must be in {self.fieldnames + self.cursor_tokens}")
         for val in values.values():
             if list(val.keys()) != fields:
                 raise ValueError(f"Fields must match for all values in values dict")
         
-        query = self._query
         if 'where_clause' in kwargs:
-            query = kwargs['where_clause']
+            query = self._join_queries(kwargs['where_clause'])
             del kwargs['where_clause']
+        else:
+            query = self.query
         
         update_count = 0
         with arcpy.da.UpdateCursor(self.featurepath, fields, where_clause=query, **kwargs) as cursor:
             for row in cursor:
                 row_dict = dict(zip(fields, row))
-                if row_dict[key] in values.keys():
-                    cursor.updateRow(list(values[row_dict[key]].values()))
+                row_key = row_dict[key]
+                if row_key in values.keys():
+                    new_row = values[row_dict[key]]
+                    if not all([f in fields for f in new_row.keys()]):
+                        raise ValueError(f"Row {row_dict[key]} has invalid fields {new_row.keys()}")
+                    cursor.updateRow(list(new_row.values()))
+                    self.cache[self._get_index(row_dict[key])].update(new_row)
                     update_count += 1
         return update_count
+    
+    def _insert_rows_cache(self, values: dict[str, Any], **kwargs) -> int:
+        """ Internal Method for writing inserts to cache """
+        if not values:
+            raise ValueError("Values must be provided")
+        fields = list(values.keys())
+        if not self._validate_fields(fields):
+            raise ValueError(f"Fields must be in {self.fieldnames + self.cursor_tokens}")
+        
+        for row in values:
+            self.cache[len(self.cache)] = row
+            self.cache.edits['inserts'].append(row)
+        self.record_count += len(values)
+        self._total_count += len(values)
+        return len(values)
     
     def insert_rows(self, values: list[dict[Any, dict[str, Any]]], **kwargs) -> int:
         """ Insert rows into table
@@ -177,6 +216,9 @@ class Table(DescribeModel):
         if not self._validate_fields(fields):
             raise ValueError(f"Fields must be in {self.fieldnames + self.cursor_tokens}")
         
+        if self.cache:
+            return self._insert_rows_cache(values)
+        
         insert_count = 0
         with arcpy.da.InsertCursor(self.featurepath, fields, **kwargs) as cursor:
             for value in values:
@@ -186,17 +228,32 @@ class Table(DescribeModel):
         self._total_count += insert_count
         return insert_count
     
-    def delete_rows(self, key: str, values: list[Any], **kwargs) -> int:
+    def _delete_rows_cache(self, values: list[Any], **kwargs) -> int:
+        """ Internal Method for deleting rows from cache """
+        if not values:
+            raise ValueError("Values must be provided")
+        delete_count = 0
+        for value in values:
+            self.cache.pop(self._get_index(value))
+            delete_count += 1
+        self.record_count -= delete_count
+        self._total_count -= delete_count
+        return delete_count
+    
+    def delete_rows(self, values: list[int], **kwargs) -> int:
         """ Delete rows from table
-        key: field to use as key for delete (must be in fields)
-        values: list of values to delete
+        values: list of ObjectIDs to delete
         kwargs: See arcpy.da.UpdateCursor for kwargs
         return: number of rows deleted
         """
         if not values:
             raise ValueError("Values must be provided")
+        
+        if self.cache:
+            return self._delete_rows_cache(self.OIDField, values)
+        
         delete_count = 0
-        with arcpy.da.UpdateCursor(self.featurepath, [key], **kwargs) as cursor:
+        with arcpy.da.UpdateCursor(self.featurepath, [self.OIDField], **kwargs) as cursor:
             for row in cursor:
                 if row[0] in values:
                     cursor.deleteRow()
@@ -222,21 +279,52 @@ class Table(DescribeModel):
         self.update()
         return
     
+    def commit(self) -> None:
+        """ Commit changes to the table """
+        self.cache.commit()
+        return
+    
+    def _join_queries(self, queries: str | list[str], join_type: str = "AND") -> str:
+        """ Join queries with a join type
+        queries: list of queries to join
+        join_type: join type (AND/OR)
+        return: joined query string
+        """
+        if isinstance(queries, str):
+            queries = [queries]
+        if self.query and self.query not in queries:
+            queries.append(self.query)
+        return f" {join_type} ".join(queries)
+    
+    def _get_index(self, key: int) -> int:
+        """ Get the index of a key in the cache """
+        if not self.cache:
+            raise CacheError("Cache not found")
+        for idx, row in self.cache.items():
+            if row[self.OIDField] == key:
+                return idx
+        raise CacheError(f"Key {key} not found in cache")
+    
     def __iter__(self):
         yield from self.get_rows(self.fieldnames, as_dict=True)
         
     def __len__(self):
         if hasattr(self, "record_count"):
             return self.record_count
+        elif hasattr(self, "cache") and self.cache:
+            return len(self.cache)
         return len([i for i in self])
     
     def __getitem__(self, idx: int | str):
         if isinstance(idx, int):
-            if not self.data or len(self.data) != self.record_count:
-                self.data = [row for row in self]
-            return self.data[idx]
+            if idx >= self.record_count or idx < -self.record_count-1:
+                raise IndexError(f"Index {idx} out of range")
+            if not self.cache:
+                self.cache.rebuild()
+            return self.cache[idx if idx >= 0 else self.record_count + idx]
         
         elif isinstance(idx, str) and idx in self.fieldnames + self.cursor_tokens:
+            print("Got String")
             return [v for v in self.get_rows([idx])]
         
         elif isinstance(idx, list) and all([isinstance(f, str) for f in idx]):
@@ -245,17 +333,20 @@ class Table(DescribeModel):
         
         raise KeyError(f"{idx} not in {self.fieldnames + self.cursor_tokens}")
     
-    def __setitem__(self, idx: int | str, values: list | Any):
-        if isinstance(idx, int) and len(values) == len(self.fieldnames):
-            self.update_rows(self.OIDField, {idx: dict(zip(self.fieldnames, values))})
+    def __setitem__(self, key: int | str, value: list | Any):
+        if isinstance(key, int) and len(value) == len(self.fieldnames):
+            print("Int")
+            self.update_rows(self.OIDField, {key: dict(zip(self.fieldnames, value))})
             return
-        if isinstance(idx, str) and idx in self.fieldnames + self.cursor_tokens:
-            with arcpy.da.UpdateCursor(self.featurepath, [idx], where_clause=self.query) as cursor:
+        
+        if isinstance(key, str) and key in self.fieldnames + self.cursor_tokens:
+            print("String")
+            with arcpy.da.UpdateCursor(self.featurepath, [key], where_clause=self.query) as cursor:
                 for row in cursor:
-                    row[0] = values
+                    row[0] = value
                     cursor.updateRow(row)
             return
-        raise ValueError(f"{idx} not in {self.fieldnames + self.cursor_tokens} or index is out of range")
+        raise ValueError(f"{key} not in {self.fieldnames + self.cursor_tokens} or index is out of range")
     
     def __delitem__(self, idx: int | str | list[str]):
         if isinstance(idx, int):
@@ -275,8 +366,8 @@ class Table(DescribeModel):
 
 class FeatureClass(Table):
     """ Wrapper for basic FeatureClass operations """    
-    def __init__(self, shppath: os.PathLike):
-        super().__init__(shppath)
+    def __init__(self, shppath: os.PathLike, **kwargs):
+        super().__init__(shppath, **kwargs)
         self.spatialReference: arcpy.SpatialReference = self.describe.spatialReference
         self.shapeType: str = self.describe.shapeType
         self.cursor_tokens.extend(
@@ -301,6 +392,7 @@ class ShapeFile(FeatureClass):
     
 class Dataset(DescribeModel):
     """ Wrapper for basic Dataset operations """
+    
 class GeoDatabase(DescribeModel):
     """ Wrapper for basic GeoDatabase operations """
     
@@ -379,3 +471,60 @@ class Schema:
         if isinstance(other, Schema):
             return self._comparator_set - other._comparator_set
         raise ValueError(f"Cannot compare Schema to {type(other)}")
+
+
+class CacheError(Exception):
+    """ Custom Exception for Cache """
+    pass
+    
+class Cache(dict):
+    """ Cache object that allows for invalidation and updating """
+    
+    def __init__(self, table: Table) -> None:
+        super().__init__({row[table.OIDField]: row for row in table})
+        self.valid: bool = True
+        self.table: Table = table
+        self.edits: dict = \
+            {
+                "inserts": [],
+                "updates": [],
+                "deletes": [],
+            }
+        return
+    
+    def invalidate(self) -> None:
+        """ Invalidate the cache """
+        self.valid = False
+        return
+    
+    def commit(self) -> None:
+        """ Commit changes to the cache """
+        self.table.insert_rows(self.edits['inserts'])
+        self.table.update_rows(self.table.OIDField, self.edits['updates'])
+        self.table.delete_rows(self.edits['deletes'])
+        self.edits = \
+            {
+                "inserts": [],
+                "updates": [],
+                "deletes": [],
+            }
+        return
+    
+    def rebuild(self) -> None:
+        """ Rebuild the cache """
+        self.clear()
+        self.update({row[self.table.OIDField]: row for row in self.table})
+        self.valid = True
+        return
+    
+    def __setitem__(self, key: Any, value: Any) -> None:
+        super().__setitem__(key, value)
+        print("Cache hit")
+        self.edits['updates'].append(value)
+    
+    def __bool__(self) -> bool:
+        return self.valid
+
+
+if __name__ == "__main__":
+    p = ShapeFile(r"C:\Users\asimov\Desktop\Parcels\nc_union_parcels_pt.shp")
