@@ -13,9 +13,6 @@ from utils.reloader import import_tools
 import utils.archelp
 reload(utils.archelp)
 
-import utils.models
-reload(utils.models)
-
 import utils.tool
 reload(utils.tool)
 
@@ -24,8 +21,11 @@ TOOLS = \
     "tools.prod":
         [
             "VertexBuffer",
-            "DatabaseMerger",
-        ]
+        ],
+    "tools.utility":
+        [
+            "VersionControl",
+        ],
 }
 
 IMPORTS = import_tools(TOOLS)
