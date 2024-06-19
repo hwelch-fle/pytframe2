@@ -451,25 +451,33 @@ class Schema:
     
     def __eq__(self, other: object) -> bool:
         if isinstance(other, Schema):
-            return self._comparator_set - other._comparator_set == set() and other._comparator_set - self._comparator_set == set()
+            return self._comparator_set == other._comparator_set
+        if isinstance(other, set):
+            return self._comparator_set == other
         raise ValueError(f"Cannot compare Schema to {type(other)}")
     
     def __and__(self, other: object) -> set[str]:
         """ Overload the & operator to return the intersection of two Schemas Table anf FC names"""
         if isinstance(other, Schema):
             return self._comparator_set & other._comparator_set
+        if isinstance(other, set):
+            return self._comparator_set & other
         raise ValueError(f"Cannot compare Schema to {type(other)}")
     
     def __or__(self, other: object) -> set[str]:
         """ Overload the | operator to return the union of two Schemas Table and FC names"""
         if isinstance(other, Schema):
             return self._comparator_set | other._comparator_set
+        if isinstance(other, set):
+            return self._comparator_set | other
         raise ValueError(f"Cannot compare Schema to {type(other)}")
     
     def __sub__(self, other: object) -> set[str]:
         """ Overload the - operator to return the difference of two Schemas Table and FC names"""
         if isinstance(other, Schema):
             return self._comparator_set - other._comparator_set
+        if isinstance(other, set):
+            return self._comparator_set - other
         raise ValueError(f"Cannot compare Schema to {type(other)}")
 
 
