@@ -1,10 +1,10 @@
 import arcpy
 from arcpy import Parameter
 
-from utils.tool import Tool
-from utils.models import Table, Workspace
-import utils.archelp as archelp
-from utils.archelp import print, Parameters
+from utils.datamodel.tool import Tool
+from utils.datamodel.models import Table, Workspace
+import utils.funcs.archelp as archelp
+from utils.funcs.archelp import print, Parameters
 
 class GDBMerger(Tool):
     def __init__(self):

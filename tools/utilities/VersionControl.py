@@ -4,9 +4,9 @@ import os
 from pathlib import Path
 from typing import Literal
 
-from utils.tool import Tool
-import utils.archelp as archelp
-from utils.archelp import print
+from utils.datamodel.tool import Tool
+import utils.funcs.archelp as archelp
+from utils.funcs.archelp import print
 
 class VersionControl(Tool):
     __slots__ = ["active_branch", "branches", "workdir"]

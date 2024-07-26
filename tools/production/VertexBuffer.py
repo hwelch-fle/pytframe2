@@ -1,8 +1,8 @@
 import arcpy
 
-from utils.tool import Tool
-import utils.archelp as archelp
-import utils.models as models
+from utils.datamodel.tool import Tool
+import utils.funcs.archelp as archelp
+import utils.datamodel.models as models
 
 class VertexBuffer(Tool):
     

@@ -1,8 +1,8 @@
 from typing import Any
 from arcpy.arcobjects import Parameter
-from utils.tool import Tool
-from utils.models import FeatureClass
-from utils.archelp import print
+from utils.datamodel.tool import Tool
+from utils.datamodel.models import FeatureClass
+from utils.funcs.archelp import print
 
 class DevTool(Tool):
     def __init__(self):

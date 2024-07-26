@@ -6,7 +6,7 @@ import arcpy.typing.describe as typdesc
 from arcpy.mp import ArcGISProject
 from arcpy.da import SearchCursor, UpdateCursor, InsertCursor, Editor
 from typing import overload, Any, Generator, Iterable, Mapping, Self
-from archelp import print
+from utils.funcs.archelp import print
 
 class SQLError(Exception): ...
 
@@ -16,7 +16,7 @@ class DescribeModel:
     def __init__(self, path: os.PathLike):
         self.path = path
         desc = self._validate()    
-        self.describe: typdesc.base.Base = desc
+        self._describe: typdesc.base.Base = desc
         self.basename: str = desc.baseName
         self.workspace: os.PathLike = desc.path
         self.name: str = desc.name
@@ -139,7 +139,7 @@ class Table(DescribeModel):
         return
     
     @property
-    def describe(self) -> typdesc.Table:
+    def describe(self) -> 'typdesc.Table':
         """ Get the describe object """
         self._describe = arcpy.Describe(self.path)
         return self._describe
@@ -424,9 +424,9 @@ class FeatureClass(Table):
     """ Wrapper for basic FeatureClass operations """    
     def __init__(self, path: os.PathLike):
         super().__init__(path)
-        self.describe: typdesc.FeatureClass = self.describe
-        self.spatialReference: arcpy.SpatialReference = self.describe.spatialReference
-        self.shapeType: str = self.describe.shapeType
+        self._describe: typdesc.FeatureClass = self._describe
+        self.spatialReference: arcpy.SpatialReference = self._describe.spatialReference
+        self.shapeType: str = self._describe.shapeType
         self.cursor_tokens.extend(
             [
                 "SHAPE@",
@@ -444,18 +444,18 @@ class FeatureClass(Table):
             ]
         )
         self.valid_fields = self.fieldnames + self.cursor_tokens
-        self.fieldnames[self.fieldnames.index(self.describe.shapeFieldName)] = "SHAPE@"
+        self.fieldnames[self.fieldnames.index(self._describe.shapeFieldName)] = "SHAPE@"
       
 class ShapeFile(FeatureClass):
     def __init__(self, path: os.PathLike):
         super().__init__(path)
-        self.describe: typdesc.ShapeFile = self.describe
+        self._describe: typdesc.ShapeFile = self._describe
         return
 
 class FeatureDataset(DescribeModel):
     def __init__(self, path: os.PathLike):
         super().__init__(path)
-        self.describe: typdesc.base.Dataset = self.describe
+        self._describe: typdesc.base.Dataset = self._describe
         return
 
 ALL = object()
@@ -467,7 +467,7 @@ class Workspace(DescribeModel):
                  featureclass_filter: list[str]=ALL,
                  table_filter: list[str]=ALL):
         super().__init__(path)
-        self.describe: typdesc.Workspace = self.describe
+        self._describe: typdesc.Workspace = self._describe
         
         self.dataset_filter = dataset_filter
         self.featureclass_filter = featureclass_filter
