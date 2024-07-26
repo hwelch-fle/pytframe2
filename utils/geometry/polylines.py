@@ -1,4 +1,7 @@
+import arcpy
+from arcpy import Point, Multipoint, Array, Polyline, Polygon
 
+from functools import reduce
 
 def reverse_array(array: arcpy.Array) -> arcpy.Array:
     """ Reverse the order of an arcpy.Array """

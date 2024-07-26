@@ -1,6 +1,6 @@
 from importlib import reload, import_module
 from traceback import format_exc
-from utils.datamodel.tool import Tool
+from datamodel.tool import Tool
 
 def placeholder_tool(tool_name: str, exception: Exception, traceback: str) -> type[Tool]:
     """ Higher order function for creating a tool class that represents a broken tool. """

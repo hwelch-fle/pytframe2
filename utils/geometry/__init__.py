@@ -1,3 +1,3 @@
-import points
-import polylines
-import polygons
+from . import points
+from . import polylines
+from . import polygons
