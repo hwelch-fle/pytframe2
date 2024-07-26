@@ -1,4 +1,4 @@
-from .base import Base, Dataset, Layer
+from abc.base import Base, Dataset, Layer
 
 __all__ = [
     "NetworkDataset",

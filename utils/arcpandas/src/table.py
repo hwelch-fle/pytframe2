@@ -1,0 +1,3 @@
+from ..abc import Table as TableABC
+
+class Table(Table): ...

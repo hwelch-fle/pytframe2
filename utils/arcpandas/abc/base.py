@@ -35,7 +35,7 @@ __all__ = [
     "VPFTable",
 ]
 
-class Base:
+class _Base:
     @property
     def baseName(self) -> str:
         """The file base name."""
@@ -76,7 +76,7 @@ class Base:
     def path(self) -> str:
         """The file path."""
 
-class Workspace(Base):
+class _Workspace(_Base):
     @property
     def connectionProperties(self):
         """
@@ -122,7 +122,7 @@ class Workspace(Base):
         RemoteDatabase—The workspace type is a geodatabase that requires a remote connection (enterprise, OLE DB, and so on).
         """
 
-class Dataset(Base):
+class _Dataset(_Base):
     @property
     def canVersion(self) -> bool:
         """Indicates whether the dataset can be versioned."""
@@ -176,7 +176,7 @@ class Dataset(Base):
         ZExtent is available for spatial datasets only.
         """
 
-class EditorTracking:
+class _EditorTracking:
     @property
     def editorTrackingEnabled(self) -> bool:
         """True if editor tracking is enabled for the dataset."""
@@ -196,7 +196,7 @@ class EditorTracking:
     def isTimeInUTC(self) -> bool:
         """True if times stored in the CreatedAt field and EditedAt field are stored in  UTC (coordinated universal time). False if they are stored in database time."""
 
-class TableBase(Dataset):
+class _TableBase(_Dataset):
     @property
     def hasOID(self) -> bool:
         """Indicates whether the table has an Object ID field."""
@@ -217,16 +217,16 @@ class TableBase(Dataset):
     def indexes(self) -> list[arcpy.Index]:
         """A list of Index objects for the table. This property is equivalent to using the ListIndexes function."""
 
-class FeatureClassBase(TableBase):
+class _FeatureClassBase(_TableBase):
     @property
     def dateAccessed(self) -> str:
-        """The date in UTC that the feature class was last accessed."""
+        """The date in UTC that the feature class _was last accessed."""
     @property
     def dateCreated(self) -> str:
-        """The date in UTC that the feature class was created."""
+        """The date in UTC that the feature class _was created."""
     @property
     def dateModified(self) -> str:
-        """The date in UTC that the feature class was last modified."""
+        """The date in UTC that the feature class _was last modified."""
     @property
     def featureType(self) -> str:
         """The feature type of the feature class."""
@@ -239,7 +239,7 @@ class FeatureClassBase(TableBase):
     @property
     def hasSpatialIndex(self) -> bool:
         """
-        Indicates whether the feature class has a spatial index.
+        Indicates whether the feature class _has a spatial index.
         Compressed datasets do not have a spatial index on the shape column and will return False.
         """
     @property
@@ -250,15 +250,15 @@ class FeatureClassBase(TableBase):
         """The geometry shape type."""
     @property
     def size(self) -> int:
-        """The size of the feature class in bytes."""
+        """The size of the feature class _in bytes."""
     @property
     def splitModel(self) -> str:
         """The split model that is set for the feature class."""
 
-class Table(TableBase, EditorTracking): ...
-class FeatureClass(FeatureClassBase, EditorTracking): ...
+class _Table(_TableBase, _EditorTracking): ...
+class _FeatureClass(_FeatureClassBase, _EditorTracking): ...
 
-class Layer(Dataset):
+class _Layer(_Dataset):
     @property
     def dataElement(self) -> Base:
         """The Describe object of the data source to which the layer refers."""
@@ -267,7 +267,7 @@ class Layer(Dataset):
         """The end time field of the layer (if the layer is time-aware)."""
     @property
     def featureClass(self) -> FeatureClass:
-        """The Describe object of the feature class associated with the feature layer."""
+        """The Describe object of the feature class _associated with the feature layer."""
     @property
     def FIDSet(self) -> str:
         """
@@ -296,7 +296,7 @@ class Layer(Dataset):
     def whereClause(self) -> str:
         """The layer's definition query where clause."""
 
-class RasterBand(TableBase):
+class _RasterBand(_TableBase):
     @property
     def height(self) -> int:
         """The number of rows."""
@@ -321,7 +321,7 @@ class RasterBand(TableBase):
     @property
     def tableType(self) -> str:
         """
-        The class names of the table.
+        The class _names of the table.
         Value—Values in the table are used for values only, not for indexing.
         Index—Values in the table are used as indexes in the raster table.
         Invalid—Values are invalid.
@@ -330,7 +330,7 @@ class RasterBand(TableBase):
     def width(self) -> int:
         """The number of columns."""
 
-class RasterDataset(RasterBand):
+class _RasterDataset(_RasterBand):
     @property
     def bandCount(self) -> int:
         """The number of bands in the raster dataset."""
@@ -347,7 +347,7 @@ class RasterDataset(RasterBand):
     def sensorType(self) -> str:
         """The sensor type used to capture the image."""
 
-class ArcInfoItem(Base):
+class _ArcInfoItem(_Base):
     @property
     def alternateName(self) -> str:
         """The alternate name is another name you can use to refer to the item. It sometimes contains abbreviated names for items that otherwise have long descriptive names. Long item names often help for documentation purposes. Shorter names may be convenient for ad hoc usage."""
@@ -376,7 +376,7 @@ class ArcInfoItem(Base):
     def width(self) -> int:
         """The number of spaces (or bytes) used to store the item's values."""
 
-class ArcInfoTable(TableBase):
+class _ArcInfoTable(_TableBase):
     @property
     def itemSet(self) -> list[ArcInfoItem]:
         """A list of items in the table.
@@ -384,7 +384,7 @@ class ArcInfoTable(TableBase):
         Each entry in the list is an ArcInfo Workstation Item properties Describe object, representing one item in the table.
         """
 
-class BIMFileWorkspace(Dataset):
+class _BIMFileWorkspace(_Dataset):
     @property
     def activeWorldFilePath(self) -> str:
         """The path to a .wld3 file that will be used to adjust the spatial coordinates of features in the file."""
@@ -449,7 +449,7 @@ class BIMFileWorkspace(Dataset):
     def worksets(self) -> str:
         """A list of workset names that will be returned as a JSON array of JSON objects."""
 
-class CadDrawingDataset(Dataset):
+class _CadDrawingDataset(_Dataset):
     @property
     def activeWorldFilePath(self) -> str:
         """Path to WLD3 file being used to adjust the spatial coordinates of features in the file."""
@@ -517,43 +517,43 @@ class CadDrawingDataset(Dataset):
     def version(self) -> str:
         """CAD authoring application file version."""
 
-class CadFeatureClass(FeatureClassBase): ...
+class _CadFeatureClass(_FeatureClassBase): ...
 
-class CoverageFeatureClass(FeatureClassBase):
+class _CoverageFeatureClass(_FeatureClassBase):
     @property
     def featureClassType(self) -> str:
-        """The feature class types."""
+        """The feature class _types."""
     @property
     def hasFAT(self) -> bool:
-        """True if the coverage feature class has a Feature Attribute Table (FAT) and False if it does not."""
+        """True if the coverage feature class _has a Feature Attribute Table (FAT) and False if it does not."""
     @property
     def topology(self) -> str:
         """
-        Indicates the state of the coverage feature class topology.
+        Indicates the state of the coverage feature class _topology.
         NotApplicable—The topology is not supported by this feature class.
         Preliminary—Topology is preliminary.
         Exists—Topology exists.
         Unknown—Topology status is unknown.
         """
 
-class Coverage(Dataset):
+class _Coverage(_Dataset):
     @property
     def tolerances(self):
         """Tolerances is a property set"""
 
-class DbaseTable(TableBase): ...
-class File(Base): ...
-class Folder(Workspace): ...
+class _DbaseTable(_TableBase): ...
+class _File(_Base): ...
+class _Folder(_Workspace): ...
 
-class GALayer(Layer):
+class _GALayer(_Layer):
     @property
     def areaOfInterest(self) -> arcpy.Extent:
         """The extent of the geostatistical layer."""
     @property
     def dataCollection(self) -> arcpy.ValueTable:
-        """A value table of the datasets used to create the geostatistical layer. It is recommended that you instead use the GeostatisticalDatasets class to determine the source dataset."""
+        """A value table of the datasets used to create the geostatistical layer. It is recommended that you instead use the GeostatisticalDatasets class _to determine the source dataset."""
 
-class LasDataset(File, Dataset):
+class _LasDataset(_File, _Dataset):
     @property
     def constraintCount(self) -> int:
         """The number of surface constraint features referenced by the LAS dataset."""
@@ -573,9 +573,9 @@ class LasDataset(File, Dataset):
     def usesRelativePath(self) -> bool:
         """Indicates whether the LAS dataset references its data elements using relative paths."""
 
-class MapDocument(Base): ...
+class _MapDocument(_Base): ...
 
-class MosaicDataset(RasterDataset, EditorTracking):
+class _MosaicDataset(_RasterDataset, _EditorTracking):
     @property
     def allowedCompressionMethods(self) -> str:
         """The methods of compression that can be used to transmit the mosaicked image from the server to the client. This property influences an image service generated from the mosaic dataset."""
@@ -757,15 +757,15 @@ class MosaicDataset(RasterDataset, EditorTracking):
         This is applicable only for the Closest to Viewpoint mosaic method.
         """
 
-class ProjectionFile:
+class _ProjectionFile:
     @property
     def spatialReference(self) -> arcpy.SpatialReference:
-        """The SpatialReference class instance of the projection file."""
+        """The SpatialReference class _instance of the projection file."""
 
-class RecordSet(TableBase):
+class _RecordSet(TableBase):
     @property
     def json(self) -> str:
-        """A JSON string representing the table or feature class that underlies the arcpy.RecordSet or arcpy.FeatureSet."""
+        """A JSON string representing the table or feature class _that underlies the arcpy.RecordSet or arcpy.FeatureSet."""
     @property
     def pjson(self) -> str:
         """
@@ -773,10 +773,10 @@ class RecordSet(TableBase):
         This string is a little larger because it includes extra newline and whitespace characters.
         """
 
-class FeatureSet(RecordSet, FeatureClassBase): ...
-class ShapeFile(FeatureClassBase): ...
+class _FeatureSet(RecordSet, FeatureClassBase): ...
+class _ShapeFile(FeatureClassBase): ...
 
-class TableView(TableBase):
+class _TableView(TableBase):
     @property
     def table(self) -> TableBase:
         """A Describe object of the table associated with the table view."""
@@ -797,9 +797,9 @@ class TableView(TableBase):
     def nameString(self) -> str:
         """The name of the table view."""
 
-class TextFile(File, TableBase): ...
+class _TextFile(File, TableBase): ...
 
-class TIN(Dataset):
+class _TIN(Dataset):
     @property
     def fields(self) -> list[arcpy.Field]:
         """A list containing Field objects for the TIN dataset."""
@@ -819,8 +819,8 @@ class TIN(Dataset):
     def ZFactor(self) -> int:
         """Multiplication factor applied to all z-values in a TIN to provide unit congruency between coordinate components."""
 
-class Tool(Dataset): ...
-class Toolbox(Dataset): ...
-class VPFCoverage(Dataset): ...
-class VPFFeatureClass(FeatureClassBase): ...
-class VPFTable(TableBase): ...
+class _Tool(Dataset): ...
+class _Toolbox(Dataset): ...
+class _VPFCoverage(Dataset): ...
+class _VPFFeatureClass(FeatureClassBase): ...
+class _VPFTable(TableBase): ...

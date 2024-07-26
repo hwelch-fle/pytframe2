@@ -1,3 +1,8 @@
+from arcpy.da import SearchCursor, UpdateCursor
+
+from typing import Any, Generator
+
+
 def as_dict(cursor: SearchCursor | UpdateCursor) -> Generator[dict[str, Any], None, None]:
     """Convert a search cursor or update cursor to an iterable dictionary generator
     This allows for each row operation to be done using fieldnames as keys.
@@ -25,6 +30,3 @@ def as_dict(cursor: SearchCursor | UpdateCursor) -> Generator[dict[str, Any], No
         
     """
     yield from ( dict(zip(cursor.fields, row)) for row in cursor )
-
-if __name__ == "__main__":
-    pass
