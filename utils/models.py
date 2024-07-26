@@ -10,12 +10,12 @@ from archelp import print
 
 class SQLError(Exception): ...
 
-class DescribeModel:
+class Base:
     """ Base object for models """
         
     def __init__(self, path: os.PathLike):
         self.path = path
-        desc = self._validate()    
+        desc: typdesc.base.Base = self._validate()
         self.describe: typdesc.base.Base = desc
         self.basename: str = desc.baseName
         self.workspace: os.PathLike = desc.path
@@ -48,14 +48,14 @@ class DescribeModel:
     def __str__(self):
         return f"{type(self).__name__}: {self.basename} - {self.path}"
 
-class Table(DescribeModel):
+class Table(Base):
     """ Wrapper for basic Table operations """
     
     ALL_FIELDS = object()
     
     def __init__(self, path: os.PathLike):
         super().__init__(path)
-        self._describe: typdesc.Table = self._describe
+        self._describe: typdesc.base.Table = self._describe
         self._query: str = None
         self._spatial_filter: arcpy.Geometry = None
         self.fields: dict[str, arcpy.Field] = {field.name: field for field in arcpy.ListFields(self.path)}
@@ -139,7 +139,7 @@ class Table(DescribeModel):
         return
     
     @property
-    def describe(self) -> typdesc.Table:
+    def describe(self) -> typdesc.base.Table:
         """ Get the describe object """
         self._describe = arcpy.Describe(self.path)
         return self._describe
@@ -452,7 +452,7 @@ class ShapeFile(FeatureClass):
         self.describe: typdesc.ShapeFile = self.describe
         return
 
-class FeatureDataset(DescribeModel):
+class FeatureDataset(Base):
     def __init__(self, path: os.PathLike):
         super().__init__(path)
         self.describe: typdesc.base.Dataset = self.describe
@@ -460,7 +460,7 @@ class FeatureDataset(DescribeModel):
 
 ALL = object()
 
-class Workspace(DescribeModel):
+class Workspace(Base):
     
     def __init__(self, path: os.PathLike, *,
                  dataset_filter: list[str]=ALL,
