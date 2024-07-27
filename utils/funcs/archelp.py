@@ -1,6 +1,7 @@
 import arcpy
 import builtins
 from pprint import pformat
+import time
 import functools
 from functools import wraps, reduce, partial
 import sys
@@ -151,3 +152,14 @@ def flip_polyline(polyline: arcpy.Polyline, reverse_parts: bool = False) -> arcp
             for part in polyline
         ][::reverse_parts and -1 or 1] # Some python magic to convert a boolean to forward or reverse slice step 
         )
+    
+def perf_timer(func: callable, label: str=None) -> callable:
+    """ Decorator for timing the execution of a function """
+    @wraps(func)
+    def wrapper(*args, **kwargs):
+        start = time.perf_counter()
+        result = func(*args, **kwargs)
+        end = time.perf_counter()
+        print(f"{label}: {func.__name__} executed in {end-start:.4f} seconds")
+        return result
+    return wrapper
