@@ -1,5 +1,6 @@
 # Internal testing scripts
 _tests/
+_test*.py
 
 # Byte-compiled / optimized / DLL files
 __pycache__/
