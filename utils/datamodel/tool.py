@@ -1,6 +1,4 @@
 import arcpy
-import os
-import pathlib
 from pathlib import Path
 
 from typing import Any
@@ -21,7 +19,7 @@ class Tool(ABC):
     # in the base class as they may change during the life of the toolbox
     # These values should be initiliazed in the tool subclasses only when they
     # are needed.
-    init_cache: dict[str, Any] = {}
+    _init_cache: dict[str, Any] = {}
     
     """
     Base class for all tools that use python objects to build parameters
@@ -34,8 +32,8 @@ class Tool(ABC):
                                     tool will be re-initialized
         """
         # If a tool has already been initialized, use the cache
-        if Tool.init_cache and not invalidate_cache:
-            self.__dict__.update(Tool.init_cache)
+        if Tool._init_cache and not invalidate_cache:
+            self.__dict__.update(Tool._init_cache)
             return
         
         # Tool parameters
@@ -54,7 +52,7 @@ class Tool(ABC):
         self.databases = self.project.databases
         
         # Cache after first initialization
-        Tool.init_cache = self.__dict__
+        Tool._init_cache = self.__dict__
         return
     
     def getParameterInfo(self) -> list[arcpy.Parameter]: ...
