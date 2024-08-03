@@ -13,6 +13,12 @@ from pathlib import Path
 from typing import Literal, Any, Generator
 from enum import Enum
 
+# Trick for avoiding circular imports (models uses print function defined here)
+from typing import TYPE_CHECKING
+if TYPE_CHECKING:
+    from datamodel.models import FeatureClass
+
+
 class controlCLSID(Enum):
     """ See [Parameter Controls](https://pro.arcgis.com/en/pro-app/latest/arcpy/geoprocessing_and_python/parameter-controls.htm)
         documentation for more information on parameter controls.
@@ -131,28 +137,163 @@ def explode_polyline(polyline: arcpy.Polyline) -> list[arcpy.Polyline]:
 
 def flip_polyline(polyline: arcpy.Polyline, reverse_parts: bool = False) -> arcpy.Polyline:
     """ Flips all segments of a polyline and optionally reverses part order
-    
-    Parameters
-    ----------
-    polyline : arcpy.Polyline
+    :param polyline: arcpy.Polyline
         The polyline to flip
-    reverse_parts : bool, optional
+    :param reverse_parts: bool, optional
         Reverse the order of the parts in the polyline, by default False
-    
-    Returns
-    -------
-    arcpy.Polyline
+    :return: arcpy.Polyline
         The flipped polyline
-    """    
+    """   
     if not polyline.isMultipart:
         return arcpy.Polyline(reverse_array(polyline[0]), polyline.spatialReference)
     return merge_polylines(
         [
-            flip_polyline(arcpy.Polyline(part, polyline.spatialReference))
-            for part in polyline
+            flip_polyline(part)
+            for part in explode_polyline(polyline)
         ][::reverse_parts and -1 or 1] # Some python magic to convert a boolean to forward or reverse slice step 
         )
+
+def polyline_from_pointgeo(pointgeos: list[arcpy.PointGeometry], spatial_reference: arcpy.SpatialReference=None) -> arcpy.Polyline:
+    """Creates a polyline from a list of point geometries
+    @pointgeo: An ordered list of point geometries to create the polyline from
+    @spatial_reference: The spatial reference of the polyline (default: None)
+    @return: The polyline
+    """
+    if any(pointgeo.isMultipart for pointgeo in pointgeos):
+        raise ValueError("Multipart PointGeometries can not be converted to a Polyline")
+    return arcpy.Polyline((point.centroid for point in pointgeos), spatial_reference=spatial_reference)
+
+def split_polyline(polyline: arcpy.Polyline, points: list[arcpy.PointGeometry]) -> list[arcpy.Polyline]:
+    """
+    Split a polyline at points and yield the segments
+    """
+    # Order the points
+    points = sorted(points, key=lambda point: polyline.measureOnLine(point))
     
+    last_measure = 0
+    segments = []
+    for point in points:
+        measure = polyline.measureOnLine(point)
+        if last_measure == measure: continue # Skip first
+        
+        segments.append(polyline.segmentAlongLine(last_measure, measure))
+        last_measure = measure
+    return segments
+
+def find_route(edges: list[arcpy.Polyline], root: arcpy.PointGeometry, target: arcpy.PointGeometry,*,
+               max_depth: int = -1,
+               _route: list[arcpy.Polyline] | None = None) -> arcpy.Polyline | None:
+    """ 
+    Finds the shortest path between two points in a list of polylines.
+    
+    This function is a recursive depth-first search algorithm that finds the 
+    shortest path between two points. As such, it is not the most efficient
+    algorithm for large networks. 
+    
+    Best used on networks with 10-20 edges.
+    
+    :param edges: List of polylines (Polyline)
+    :param root: Starting point (PointGeometry)
+    :param target: Ending point (PointGeometry)
+    :param max_depth: Maximum depth of the recursion (int) (default: -1)
+    
+    :return: Shortest path between start and end (Polyline) or None
+    """
+    if max_depth == 0:
+        raise RecursionError(f"Max depth of {max_depth} reached")
+    
+    if _route is None:
+        _route = []
+        # Immediately return None if the root or target are not on any edge
+        if not any(edge.touches(root) for edge in edges):
+            return None
+        if not any(edge.touches(target) for edge in edges):
+            return None
+        
+    # Base condition
+    if root == target:
+        return merge_polylines(_route)
+    
+    # Next branches
+    adjacent_edges = \
+        [
+            edge 
+            for edge in edges 
+            if edge.touches(root) and not any(edge == routed for routed in _route)
+        ]
+        
+    # Remove the next edges from the list of edges to prevent backtracking
+    edges = [edge for edge in edges if not any(edge == adj for adj in adjacent_edges)]
+    for edge in adjacent_edges:
+        # Convert the edge extremities to PointGeometry objects
+        first, last = arcpy.PointGeometry(edge.firstPoint, edge.spatialReference), arcpy.PointGeometry(edge.lastPoint, edge.spatialReference)
+        # Get the next root
+        next_root = first if not first == root else last
+        # Recursively find the route for each edge
+        route_found = find_route(edges, next_root, target, _route=_route + [edge], max_depth=max_depth - 1)
+        # When the route is found, return it
+        if route_found:
+            return route_found
+
+def find_route_bfs(edges: list[arcpy.Polyline], 
+                   root: arcpy.PointGeometry, 
+                   target: arcpy.PointGeometry) -> arcpy.Polyline | None:
+    """ 
+    Finds a path between two points in a list of polylines using a breadth-first search algorithm. 
+    
+    :param edges: List of polylines (Polyline)
+    :param root: Starting point (PointGeometry)
+    :param target: Ending point (PointGeometry)
+    
+    :return: Shortest path between start and end (Polyline) or None
+    """
+    # Create an edge dictionary
+    edge_dict = {idx: edge for idx, edge in enumerate(edges)}
+    
+    # Create visited set
+    visited = set()
+    
+    # Create a queue to store the root edges
+    queue = [[idx] for idx, edge in edge_dict.items() if edge.touches(root)]
+    
+    while queue:
+        # Get the next route
+        route = queue.pop(0)
+        # Get the last edge in the route
+        last_edge = edge_dict[route[-1]]
+        # Get the last point of the last edge
+        last_point = arcpy.PointGeometry(last_edge.lastPoint, last_edge.spatialReference)
+        # If the last point is the target, return the route
+        if last_point == target:
+            return merge_polylines([edge_dict[idx] for idx in route])
+        # If the last point is not the target, add the last point to the visited set
+        visited.add(last_point)
+        # Get the next edges
+        next_edges = [idx for idx, edge in edge_dict.items() if idx not in visited and edge.touches(last_point)]
+        # Add the next edges to the queue
+        queue.extend([route + [idx] for idx in next_edges])
+        
+    return None
+
+def to_feature_units(features: "FeatureClass", linear_units: str) -> float:
+    """ Synchronize the linear unit of a feature class with a linear unit string
+    :param features: The feature class to synchronize
+    :param linear_unit: The linear unit string to synchronize with
+    :return: The converted linear unit
+    """
+    # Get the value and unit of the linear unit string
+    distance, unit = linear_units.split()
+    distance = float(distance)
+    
+    # Get the linear unit of the feature class
+    feature_unit = features.describe.spatialReference.linearUnitName
+    
+    if feature_unit == unit: return 1
+    
+    # Get the conversion factor
+    conversion_factor = arcpy.LinearUnitConversionFactor(unit, feature_unit)
+    return distance*conversion_factor
+
 def perf_timer(func: callable, label: str=None) -> callable:
     """ Decorator for timing the execution of a function """
     @wraps(func)
@@ -163,3 +304,5 @@ def perf_timer(func: callable, label: str=None) -> callable:
         print(f"{label}: {func.__name__} executed in {end-start:.4f} seconds")
         return result
     return wrapper
+
+from datamodel.models import FeatureClass
