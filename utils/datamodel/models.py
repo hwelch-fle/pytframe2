@@ -97,7 +97,7 @@ class Table(DescribeModel):
         self._query = query_string
         self._updated = True
         self.queried = True
-        self._queried_count = len(self)
+        self._queried_count = len([i for i in self])
         self._oid_set = set(self[self.OIDField])
         return
     
@@ -117,16 +117,21 @@ class Table(DescribeModel):
     @spatial_filter.setter
     def spatial_filter(self, filter_shape: arcpy.Geometry):
         """ Set the query string """
-        if not filter_shape: del self._spatial_filter
+        if filter_shape is None:
+            del self.spatial_filter
+            return
+        
         try:
             with self.search_cursor(spatial_filter=filter_shape) as cur:
                 cur.fields
         except Exception as e:
             print(f"Invalid spatial filter ({filter_shape})\n{e}", "warning")
+            return
+        
         self._spatial_filter = filter_shape
         self._updated = True
         self.queried = True
-        self._queried_count = len(self)
+        self._queried_count = len([i for i in self])
         self._oid_set = set(self[self.OIDField])
         return
     
