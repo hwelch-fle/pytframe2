@@ -310,8 +310,9 @@ class FeatureClass:
         with InsertCursor(self.path, self.search_fields) as cursor:
             yield cursor
 
-    @contextmanager
-    def delete(self) -> Generator:
+    def delete(self, im_sure: bool=False) -> Generator:
+        if not im_sure:
+            raise ValueError("Deleting rows has no undo, please make sure `im_sure=True`")
         with UpdateCursor(self.path, ['OID@'], **self.build_queries()) as cursor:
             for row in cursor:
                 yield row # Yield each deleted row for user to inspect
