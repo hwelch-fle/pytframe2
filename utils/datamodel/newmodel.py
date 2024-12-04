@@ -8,7 +8,7 @@ from arcpy import Describe, Geometry
 import arcpy.typing.describe as dtype
 from arcpy.management import GetCount
 
-from arcpy.da import Editor, SearchCursor, UpdateCursor, InsertCursor
+from arcpy.da import Editor, SearchCursor, UpdateCursor, InsertCursor, ListSubtypes
 
 SpatialRelationship: TypeAlias = \
     Literal[
@@ -205,12 +205,20 @@ class FeatureClass:
     where_clause: Optional[SQLQuery] = None
     spatial_filter: Optional[SpatialQuery] = None
     search_fields: list[str] = None
+    dictionary_mode: bool = False
     
     def __post_init__(self):
         self.describe: dtype.FeatureClass = Describe(self.path)    
         self.editor: Editor = Editor(self.describe.workspace.catalogPath)
         self.field_names = [field.name for field in self.describe.fields]
         self.count: int = None
+        self.subtypes: dict = {}
+        self.subtype_field: str = None
+        
+        for code, info in ListSubtypes(self.path).items():
+            if not self.subtype_field:
+                self.subtype_field = info['SubtypeField']
+            self.subtypes[code] = info['Name']
         
         if not self.search_fields:
             self.search_fields: list[str] = ['*']
@@ -230,7 +238,9 @@ class FeatureClass:
         return self.count
     
     def __iter__(self) -> Generator:
-        yield from SearchCursor(self.path, self.search_fields, **self.build_queries())
+        with self.search() as cursor:
+            for row in as_dict(cursor) if self.dictionary_mode else cursor:
+                yield row
     
     def __getitem__(self, idx) -> tuple:
         if isinstance(idx, slice):
