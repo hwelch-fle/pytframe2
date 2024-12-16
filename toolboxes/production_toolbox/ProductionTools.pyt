@@ -1,4 +1,5 @@
 import sys
+import os
 from pathlib import Path
 from importlib import reload
 
@@ -6,20 +7,23 @@ from importlib import reload
 ROOT = str(Path(__file__).parents[2].absolute())
 
 # Insert the module roots to the system path
-if ROOT not in sys.path:
-    sys.path.insert(0, ROOT) # ../pytframe2
-if rf"{ROOT}\tools" not in sys.path:
-    sys.path.insert(1, rf"{ROOT}\tools") # ../pytframe2/tools
-if rf"{ROOT}\utils" not in sys.path:
-    sys.path.insert(2, rf"{ROOT}\utils") # ../pytframe2/utils
-    
+sys.path.insert(0, ROOT) # ../pytframe2
+sys.path.insert(1, os.path.join(ROOT, "tools")) # ../pytframe2/tools
+sys.path.insert(2, os.path.join(ROOT, "utils")) # ../pytframe2/utils
 # NOTE: Add more module paths here if needed
 
+# NOQA: E402, F401 Explanations
+#   E402: sys path needs to be modified before importing modules
+#       : This is beacause ArcPro uses this file as the entry point
+#   
+#   F401: Imports appear unused because they are used in the reloader
+#       : This is because the reloader forces ArcPro to reload the modules
+#       : If you don't do this, ArcPro will use the cached code preventing hot realoading
+
 # Import dynamic modules with pyt_reload prefix
-import utils.reloader as pyt_reload_reloader 
-import utils.archelp as pyt_reload_archelp
-import utils.tool as pyt_reload_tool
-import utils.models as pyt_reload_models
+import utils.reloader as pyt_reload_reloader  # noqa: E402, F401
+import utils.funcs.archelp as pyt_reload_archelp # noqa: E402, F401
+import utils.tool as pyt_reload_tool # noqa: E402, F401
 
 # Inline reloader of dynamic modules
 [
@@ -29,8 +33,8 @@ import utils.models as pyt_reload_models
 ]
 
 # Import the Tool Importer function
-from utils.reloader import import_tools
-from utils.tool import Tool
+from utils.reloader import import_tools # noqa: E402, F401
+from utils.tool import Tool # noqa: E402, F401
 
 ## TODO: Move this to a configuration file
 TOOLS =\
