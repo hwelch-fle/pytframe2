@@ -1,3 +1,11 @@
+# This module will be depreciated once functionality can be extracted to submodules
+# TODO:
+# [x] - FeatureClass
+# [ ] - ShapeFile
+# [ ] - Table
+# [ ] - FeatureDataset
+# [ ] - Workspace
+
 from types import UnionType
 import arcpy
 import os
