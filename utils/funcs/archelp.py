@@ -1,23 +1,14 @@
 import arcpy
 import builtins
-from pprint import pformat
 import time
-import functools
-from functools import wraps, reduce, partial
-import sys
-import pip
-import os
-import shutil
-import json
-from pathlib import Path
-from typing import Literal, Any, Generator
+from functools import wraps, reduce
+from typing import Literal, Generator, Any
 from enum import Enum
 
 # Trick for avoiding circular imports (models uses print function defined here)
 from typing import TYPE_CHECKING
 if TYPE_CHECKING:
     from datamodel.models import FeatureClass
-
 
 class controlCLSID(Enum):
     """ See [Parameter Controls](https://pro.arcgis.com/en/pro-app/latest/arcpy/geoprocessing_and_python/parameter-controls.htm)
@@ -305,4 +296,31 @@ def perf_timer(func: callable, label: str=None) -> callable:
         return result
     return wrapper
 
-from datamodel.models import FeatureClass
+def as_dict(cursor: arcpy.da.SearchCursor | arcpy.da.UpdateCursor) -> Generator[dict[str, Any], None, None]:
+    """Convert a search cursor or update cursor to an iterable dictionary generator
+    This allows for each row operation to be done using fieldnames as keys.
+    
+    Arguments:
+        cursor: search cursor or update cursor.
+        
+    Yields:
+        dictionary of the cursor row.
+    
+    NOTE: This function will not overwrite the cursor object
+    if used in a context manager and iterating through the yielded
+    dictionaries will progress the cursor as if you were iterating
+    through the cursor object itself.
+    
+    usage:
+    >>> with table.search_cursor() as cursor:
+    >>>     for row in as_dict(cursor):
+    >>>         print(row)
+    ------------------------------------------------
+    >>> with table.update_cursor() as cursor:
+    >>>     for row in as_dict(cursor):
+    >>>        row["field"] = "new value"
+    >>>        cursor.updateRow(list(row.values()))  
+    """
+    yield from (dict(zip(cursor.fields, row)) for row in cursor)
+
+from datamodel.models import FeatureClass  # noqa: E402 (Needed for the type hint)
