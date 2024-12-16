@@ -1,52 +1,48 @@
 from os import PathLike
 from dataclasses import dataclass
 from contextlib import contextmanager
-from functools import reduce, wraps
 from typing import Literal, TypeAlias, Optional, Generator
 
 from arcpy import Describe, Geometry
 import arcpy.typing.describe as dtype
-from arcpy.management import GetCount
 
 from arcpy.da import Editor, SearchCursor, UpdateCursor, InsertCursor, ListSubtypes
 
-SpatialRelationship: TypeAlias = \
-    Literal[
-        'INTERSECTS', 
-        'ENVELOPE_INTERSECTS', 
-        'INDEX_INTERSECTS', 
-        'TOUCHES', 
-        'CROSSES', 
-        'WITHIN', 
-        'CONTAINS',
-        ]
+SpatialRelationship: TypeAlias = Literal[
+    'INTERSECTS', 
+    'ENVELOPE_INTERSECTS', 
+    'INDEX_INTERSECTS', 
+    'TOUCHES', 
+    'CROSSES', 
+    'WITHIN', 
+    'CONTAINS',
+    ]
 
 CursorTokens: TypeAlias = Literal[
-        "CREATED@",
-        "CREATOR@",
-        "EDITED@",
-        "EDITOR@",
-        "GLOBALID@",
-        "OID@",
-        "SUBTYPE@",
-        "*",
-        ]
+    "CREATED@",
+    "CREATOR@",
+    "EDITED@",
+    "EDITOR@",
+    "GLOBALID@",
+    "OID@",
+    "SUBTYPE@",
+    "*",
+    ]
 
-ShapeTokens: TypeAlias = \
-Literal[
-        "SHAPE@",
-        "SHAPE@XY",
-        "SHAPE@TRUECENTROID",
-        "SHAPE@X",
-        "SHAPE@Y",
-        "SHAPE@Z",
-        "SHAPE@M",
-        "SHAPE@JSON",
-        "SHAPE@WKB",
-        "SHAPE@WKT",
-        "SHAPE@AREA",
-        "SHAPE@LENGTH",
-        ]
+ShapeTokens: TypeAlias = Literal[
+    "SHAPE@",
+    "SHAPE@XY",
+    "SHAPE@TRUECENTROID",
+    "SHAPE@X",
+    "SHAPE@Y",
+    "SHAPE@Z",
+    "SHAPE@M",
+    "SHAPE@JSON",
+    "SHAPE@WKB",
+    "SHAPE@WKT",
+    "SHAPE@AREA",
+    "SHAPE@LENGTH",
+    ]
 
 class BaseQuery: ...
 
@@ -77,8 +73,7 @@ class SpatialQuery(BaseQuery):
     def __eq__(self, other: 'SpatialQuery') -> bool:
         """Equality of two geometries"""
         return self.spatial_filter == other.spatial_filter
-    
-    
+
 @dataclass(slots=True, frozen=True)
 class SQLQuery(BaseQuery):
     """Simplified interface for building and combining SQL queries using Python objects and builtins.
